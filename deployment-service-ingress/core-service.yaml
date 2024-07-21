@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: core-service
+  namespace: dev-environment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: core-service
+  template:
+    metadata:
+      labels:
+        app: core-service
+    spec:
+      containers:
+      - name: core-service
+        image: 142081895333.dkr.ecr.eu-central-1.amazonaws.com/core-service
+        ports:
+        - containerPort: 4002
+      imagePullSecrets:
+      - name: ecr-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: core-service
+  namespace: dev-environment
+spec:
+  selector:
+    app: core-service
+  ports:
+    - protocol: TCP
+      port: 4002
+      targetPort: 4002
+

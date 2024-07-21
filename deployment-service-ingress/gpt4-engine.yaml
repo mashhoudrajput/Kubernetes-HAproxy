@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gpt4-engine
+  namespace: dev-environment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gpt4-engine
+  template:
+    metadata:
+      labels:
+        app: gpt4-engine
+    spec:
+      containers:
+      - name: gpt4-engine
+        image: 142081895333.dkr.ecr.eu-central-1.amazonaws.com/gpt-4-engine-service
+        ports:
+        - containerPort: 4006
+      imagePullSecrets:
+      - name: ecr-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gpt4-engine
+  namespace: dev-environment
+spec:
+  selector:
+    app: gpt4-engine
+  ports:
+    - protocol: TCP
+      port: 4006
+      targetPort: 4006
+

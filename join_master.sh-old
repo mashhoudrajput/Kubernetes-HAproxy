@@ -1,0 +1,70 @@
+#!/bin/bash
+
+set -e
+
+# Check if arguments are provided
+if [ "$#" -ne 2 ]; then
+    echo "Usage: $0 <server_ip> <control_plane_ip>"
+    exit 1
+fi
+
+SERVER_IP=$1
+CONTROL_PLANE_IP=$2
+SSH_USER="root"
+
+# Function to validate yes/no input
+validate_input() {
+    while true; do
+        read -p "$1 (yes/no): " answer
+        case $answer in
+            [Yy]* ) return 0;;
+            [Nn]* ) return 1;;
+            * ) echo "Please answer yes or no.";;
+        esac
+    done
+}
+
+# Function to check SSH connectivity
+check_ssh() {
+    if ssh -o BatchMode=yes -o ConnectTimeout=5 $SSH_USER@$1 "exit"; then
+        return 0
+    else
+        echo "Unable to SSH into $1"
+        exit 1
+    fi
+}
+
+# Check SSH connectivity
+check_ssh $SERVER_IP
+
+# Check if the node is already part of the cluster
+if ssh $SSH_USER@$SERVER_IP "kubectl get nodes | grep -w $(hostname)"; then
+    echo "Node is already part of the cluster."
+else
+    if validate_input "Do you have the certificate key, token, and discovery-token-ca-cert-hash?"; then
+        read -p "Enter the token: " token
+        read -p "Enter the discovery-token-ca-cert-hash: " hash_key
+        read -p "Enter the certificate-key: " certificate_key
+    else
+        certificate_key=$(ssh $SSH_USER@$CONTROL_PLANE_IP "kubeadm init phase upload-certs --upload-certs | tail -n 1")
+        join_command=$(ssh $SSH_USER@$CONTROL_PLANE_IP "kubeadm token create --print-join-command --certificate-key $certificate_key")
+        token=$(echo $join_command | grep -oP '(?<=--token\s)[^\s]+')
+        hash_key=$(echo $join_command | grep -oP '(?<=--discovery-token-ca-cert-hash\s)[^\s]+')
+    fi
+
+    # Construct the kubeadm join command
+    KUBEADM_JOIN_CMD="kubeadm join 172.31.45.81:6443 --token $token --discovery-token-ca-cert-hash $hash_key --control-plane --certificate-key $certificate_key"
+    echo $KUBEADM_JOIN_CMD
+
+    # Save the KUBEADM_JOIN_CMD to a file
+    echo $KUBEADM_JOIN_CMD > kubeadm-join-$(date +%Y%m%d%H%M%S).cmd
+
+    # Validate the kubeadm join command by checking token, hash_key and certificate_key
+    if ssh $SSH_USER@$CONTROL_PLANE_IP "kubeadm token list | grep -q $token" && [[ $hash_key =~ ^[a-f0-9]{64}$ ]] && [[ $certificate_key =~ ^[a-f0-9]{64}$ ]]; then
+        ssh $SSH_USER@$SERVER_IP "$KUBEADM_JOIN_CMD"
+        echo "Master joined to the cluster on $SERVER_IP"
+    else
+        echo "Invalid token, hash, or certificate key."
+    fi
+fi
+

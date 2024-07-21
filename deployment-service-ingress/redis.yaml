@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis1
+  namespace: dev-environment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis1
+  template:
+    metadata:
+      labels:
+        app: redis1
+    spec:
+      containers:
+      - name: redis1
+        image: redis:latest
+        ports:
+        - containerPort: 6379
+        env:
+        - name: REDIS_PORT
+          value: "6379"
+        - name: REDIS_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: redis-secret
+              key: REDIS_USERNAME
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: redis-secret
+              key: REDIS_PASSWORD
+        - name: REDIS_EXPIRY
+          value: "3600"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis1
+  namespace: dev-environment
+spec:
+  selector:
+    app: redis1
+  ports:
+    - protocol: TCP
+      port: 6379
+      targetPort: 6379
+

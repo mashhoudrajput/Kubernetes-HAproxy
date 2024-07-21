@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: email-connector-cron
+  namespace: dev-environment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: email-connector-cron
+  template:
+    metadata:
+      labels:
+        app: email-connector-cron
+    spec:
+      containers:
+      - name: email-connector-cron
+        image: 142081895333.dkr.ecr.eu-central-1.amazonaws.com/email-connector-service-cron
+        ports:
+        - containerPort: 3001
+      imagePullSecrets:
+      - name: ecr-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: email-connector-cron
+  namespace: dev-environment
+spec:
+  selector:
+    app: email-connector-cron
+  ports:
+    - protocol: TCP
+      port: 3001
+      targetPort: 3001
+

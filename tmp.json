@@ -1,0 +1,63 @@
+{
+    "apiVersion": "v1",
+    "kind": "Namespace",
+    "metadata": {
+        "annotations": {
+            "cattle.io/status": "{\"Conditions\":[{\"Type\":\"ResourceQuotaInit\",\"Status\":\"True\",\"Message\":\"\",\"LastUpdateTime\":\"2024-07-19T10:16:41Z\"},{\"Type\":\"InitialRolesPopulated\",\"Status\":\"True\",\"Message\":\"\",\"LastUpdateTime\":\"2024-07-19T10:16:46Z\"}]}",
+            "field.cattle.io/projectId": "local:p-d9trs",
+            "lifecycle.cattle.io/create.namespace-auth": "true",
+            "management.cattle.io/no-default-sa-token": "true"
+        },
+        "creationTimestamp": "2024-07-19T10:15:30Z",
+        "deletionTimestamp": "2024-07-19T10:21:35Z",
+        "finalizers": [],
+        "labels": {
+            "field.cattle.io/projectId": "p-d9trs",
+            "kubernetes.io/metadata.name": "cattle-system"
+        },
+        "name": "cattle-system",
+        "resourceVersion": "37979",
+        "uid": "b3a4511c-fbb7-4272-90f4-06c2d59ccb4e"
+    },
+    "spec": {},
+    "status": {
+        "conditions": [
+            {
+                "lastTransitionTime": "2024-07-19T10:21:42Z",
+                "message": "All resources successfully discovered",
+                "reason": "ResourcesDiscovered",
+                "status": "False",
+                "type": "NamespaceDeletionDiscoveryFailure"
+            },
+            {
+                "lastTransitionTime": "2024-07-19T10:21:42Z",
+                "message": "All legacy kube types successfully parsed",
+                "reason": "ParsedGroupVersions",
+                "status": "False",
+                "type": "NamespaceDeletionGroupVersionParsingFailure"
+            },
+            {
+                "lastTransitionTime": "2024-07-19T10:21:42Z",
+                "message": "All content successfully deleted, may be waiting on finalization",
+                "reason": "ContentDeleted",
+                "status": "False",
+                "type": "NamespaceDeletionContentFailure"
+            },
+            {
+                "lastTransitionTime": "2024-07-19T10:21:48Z",
+                "message": "All content successfully removed",
+                "reason": "ContentRemoved",
+                "status": "False",
+                "type": "NamespaceContentRemaining"
+            },
+            {
+                "lastTransitionTime": "2024-07-19T10:21:42Z",
+                "message": "All content-preserving finalizers finished",
+                "reason": "ContentHasNoFinalizers",
+                "status": "False",
+                "type": "NamespaceFinalizersRemaining"
+            }
+        ],
+        "phase": "Terminating"
+    }
+}

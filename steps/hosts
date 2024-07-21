@@ -1,0 +1,6 @@
+172.31.45.81 heronos-lb
+172.31.45.63 hearonos-master1
+172.31.33.95 heronos-master2
+172.31.47.168 heronos-master3
+172.31.37.166 heronos-worker1
+172.31.44.85 hearonos-worker2

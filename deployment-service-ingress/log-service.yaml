@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: log-service
+  namespace: dev-environment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: log-service
+  template:
+    metadata:
+      labels:
+        app: log-service
+    spec:
+      containers:
+      - name: log-service
+        image: 142081895333.dkr.ecr.eu-central-1.amazonaws.com/log-service
+        ports:
+        - containerPort: 3002
+      imagePullSecrets:
+      - name: ecr-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: log-service
+  namespace: dev-environment
+spec:
+  selector:
+    app: log-service
+  ports:
+    - protocol: TCP
+      port: 3002
+      targetPort: 3002
+
