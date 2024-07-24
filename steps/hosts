@@ -1,6 +1,6 @@
-172.31.45.81 heronos-lb
-172.31.45.63 hearonos-master1
-172.31.33.95 heronos-master2
-172.31.47.168 heronos-master3
-172.31.37.166 heronos-worker1
-172.31.44.85 hearonos-worker2
+172.31.42.243 kubernetes-lb
+172.31.33.42 kubernetes-master1
+172.31.45.250 kubernetes-master2
+172.31.37.19 kubernetes-worker1
+172.31.37.47 kubernetes-worker2
+172.31.47.27 kubernetes-worker3

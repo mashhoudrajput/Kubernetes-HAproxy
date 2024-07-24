@@ -16,7 +16,7 @@ kubectl create namespace cert-manager
 helm install cert-manager jetstack/cert-manager --namespace cert-manager --version v1.5.3 --set installCRDs=true
 
 kubectl create namespace cattle-system
-helm install rancher rancher-stable/rancher --namespace cattle-system --create-namespace --set hostname=rancher.heronos.com --set ingress.ingressClassName=nginx
+####helm install rancher rancher-stable/rancher --namespace cattle-system --create-namespace --set hostname=rancher.heronos.com --set ingress.ingressClassName=nginx
 
-kubectl create namespace dev-environment
-aws ecr get-login-password --region eu-central-1 | kubectl create secret docker-registry ecr-secret --docker-server=142081895333.dkr.ecr.eu-central-1.amazonaws.com --docker-username=AWS --docker-password=$(aws ecr get-login-password --region eu-central-1) --namespace dev-environment
+#kubectl create namespace dev-environment
+#aws ecr get-login-password --region eu-central-1 | kubectl create secret docker-registry ecr-secret --docker-server=142081895333.dkr.ecr.eu-central-1.amazonaws.com --docker-username=AWS --docker-password=$(aws ecr get-login-password --region eu-central-1) --namespace dev-environment

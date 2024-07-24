@@ -117,7 +117,7 @@ done
 
 # Run create_cluster.sh
 echo "Step 6: Running create_cluster.sh script..."
-./create_cluster.sh /home/ubuntu/kubernetes $MASTER1_HOSTNAME $MASTER1_IP $LB_IP
+./create_cluster.sh ../ $MASTER1_HOSTNAME $MASTER1_IP $LB_IP
 
 # Add master nodes
 echo "Step 7: Adding master nodes..."
@@ -125,7 +125,7 @@ for HOSTNAME in "${!HOSTS[@]}"
 do
     if [[ $HOSTNAME == *"master"* && $HOSTNAME != $MASTER1_HOSTNAME ]]; then
         IP=${HOSTS[$HOSTNAME]}
-        ./add_master_node.sh /home/ubuntu/kubernetes $HOSTNAME $IP $MASTER1_IP $LB_IP
+        ./add_master_node.sh ../ $HOSTNAME $IP $MASTER1_IP $LB_IP
     fi
 done
 
@@ -135,8 +135,8 @@ for HOSTNAME in "${!HOSTS[@]}"
 do
     if [[ $HOSTNAME == *"worker"* ]]; then
         IP=${HOSTS[$HOSTNAME]}
-	echo "./add_worker_node.sh /home/ubuntu/kubernetes $HOSTNAME $IP $MASTER1_IP $LB_IP"
-        ./add_worker_node.sh /home/ubuntu/kubernetes $HOSTNAME $IP $MASTER1_IP $LB_IP
+	echo "./add_worker_node.sh ../ $HOSTNAME $IP $MASTER1_IP $LB_IP"
+        ./add_worker_node.sh ../ $HOSTNAME $IP $MASTER1_IP $LB_IP
     fi
 done
 
