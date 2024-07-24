@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: apis-service
+  namespace: dev-environment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: apis-service
+  template:
+    metadata:
+      labels:
+        app: apis-service
+    spec:
+      containers:
+      - name: apis-service
+        image: 142081895333.dkr.ecr.eu-central-1.amazonaws.com/apis-service
+        ports:
+        - containerPort: 4003
+      imagePullSecrets:
+      - name: ecr-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: apis-service
+  namespace: dev-environment
+spec:
+  selector:
+    app: apis-service
+  ports:
+    - protocol: TCP
+      port: 4003
+      targetPort: 4003
+

@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: email-connector-service
+  namespace: dev-environment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: email-connector-service
+  template:
+    metadata:
+      labels:
+        app: email-connector-service
+    spec:
+      containers:
+      - name: email-connector-service
+        image: 142081895333.dkr.ecr.eu-central-1.amazonaws.com/email-connector-service
+        ports:
+        - containerPort: 4008
+      imagePullSecrets:
+      - name: ecr-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: email-connector-service
+  namespace: dev-environment
+spec:
+  selector:
+    app: email-connector-service
+  ports:
+    - protocol: TCP
+      port: 4008
+      targetPort: 4008
+

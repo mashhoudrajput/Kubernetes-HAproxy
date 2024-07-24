@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: email-rule-engine
+  namespace: dev-environment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: email-rule-engine
+  template:
+    metadata:
+      labels:
+        app: email-rule-engine
+    spec:
+      containers:
+      - name: email-rule-engine
+        image: 142081895333.dkr.ecr.eu-central-1.amazonaws.com/email-rules-engine-service
+        ports:
+        - containerPort: 4007
+      imagePullSecrets:
+      - name: ecr-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: email-rule-engine
+  namespace: dev-environment
+spec:
+  selector:
+    app: email-rule-engine
+  ports:
+    - protocol: TCP
+      port: 4007
+      targetPort: 4007
+

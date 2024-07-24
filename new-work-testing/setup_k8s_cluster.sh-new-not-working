@@ -1,0 +1,330 @@
+#!/bin/bash
+
+# Load environment variables
+source ./env.sh
+
+declare -A HOSTS
+declare -A K8S_NODES
+declare -A REMOVED_NODES
+
+# Function to check SSH connectivity
+check_ssh() {
+    local ip=$1
+    ssh -o BatchMode=yes -o ConnectTimeout=5 $ip "exit" &>/dev/null
+    return $?
+}
+
+# Function to read the hosts file and populate the HOSTS array
+read_hosts_file() {
+    if [[ -f "$HOSTS_FILE" ]]; then
+        while IFS= read -r line
+        do
+            IP=$(echo $line | awk '{print $1}')
+            HOSTNAME=$(echo $line | awk '{print $2}')
+            HOSTS[$HOSTNAME]=$IP
+        done < "$HOSTS_FILE"
+    else
+        echo "Error: Hosts file $HOSTS_FILE not found."
+        exit 1
+    fi
+}
+
+# Function to get current Kubernetes nodes
+get_k8s_nodes() {
+    if timeout 10s kubectl get nodes -o wide &>/dev/null; then
+        timeout 10s kubectl get nodes -o wide | tail -n +2 | while read -r line
+        do
+            IP=$(echo $line | awk '{print $6}')
+            HOSTNAME=$(echo $line | awk '{print $1}')
+            K8S_NODES[$HOSTNAME]=$IP
+        done
+    else
+        return 1
+    fi
+}
+
+# Function to get removed nodes
+get_removed_nodes() {
+    removed_nodes=()
+    for host in "${!K8S_NODES[@]}"; do
+        if [[ -z "${HOSTS[$host]}" ]]; then
+            removed_nodes+=($host)
+            REMOVED_NODES[$host]=${K8S_NODES[$host]}
+        fi
+    done
+    echo ${removed_nodes[@]}
+}
+
+# Function to remove nodes
+remove_nodes() {
+    local nodes=("$@")
+    for HOSTNAME in "${nodes[@]}"; do
+        IP=${K8S_NODES[$HOSTNAME]}
+        if [[ $HOSTNAME == *"master"* || $HOSTNAME == *"worker"* ]]; then
+            echo "Removing $HOSTNAME $IP from the cluster"
+            if [[ -f "./remove_node_and_uninstall.sh" ]]; then
+                ./remove_node_and_uninstall.sh $HOSTNAME $IP $MASTER1_IP
+            else
+                echo "Error: File remove_node_and_uninstall.sh not found."
+                exit 1
+            fi
+            timeout 10s kubectl delete node $HOSTNAME --force --grace-period=0 &>/dev/null
+        fi
+    done
+}
+
+# Function to ensure no new node uses the removed node's IP
+check_new_node_ip() {
+    local new_ip=$1
+    for removed_ip in "${REMOVED_NODES[@]}"; do
+        if [[ $new_ip == $removed_ip ]]; then
+            echo "Error: The IP address $new_ip is the same as a recently removed node. Please use a different IP address."
+            exit 1
+        fi
+    done
+}
+
+# Function to remove nodes with role "none"
+remove_none_role_nodes() {
+    nodes_with_none_role=$(timeout 10s kubectl get nodes --no-headers | awk '$3 == "<none>" {print $1}')
+    for NODE in $nodes_with_none_role; do
+        IP=$(timeout 10s kubectl get node $NODE -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
+        echo "Removing $NODE $IP from the cluster because the ROLE is NONE, as shown by 'kubectl get nodes'"
+        if [[ -f "./remove_node_and_uninstall.sh" ]]; then
+            ./remove_node_and_uninstall.sh $NODE $IP $MASTER1_IP
+        else
+            echo "Error: File remove_node_and_uninstall.sh not found."
+            exit 1
+        fi
+        timeout 10s kubectl delete node $NODE --force --grace-period=0 &>/dev/null
+    done
+}
+
+# Read the hosts file
+echo "Step 1/11: Reading the hosts file..."
+read_hosts_file
+
+# Get current Kubernetes nodes
+echo "Step 2/11: Getting current Kubernetes nodes..."
+if ! get_k8s_nodes; then
+    echo "Failed to get Kubernetes nodes."
+    rm -f ~/.kube/config
+else
+    # Find the first master node to create the cluster
+    MASTER1_HOSTNAME=""
+    for HOSTNAME in "${!HOSTS[@]}"
+    do
+        if [[ $HOSTNAME == *"master"* ]]; then
+            MASTER1_HOSTNAME=$HOSTNAME
+            MASTER1_IP=${HOSTS[$MASTER1_HOSTNAME]}
+            break
+        fi
+    done
+
+    # Ensure MASTER1_HOSTNAME and MASTER1_IP are set and available in Kubernetes nodes
+    if [[ -z "$MASTER1_HOSTNAME" || -z "$MASTER1_IP" || -z "${K8S_NODES[$MASTER1_HOSTNAME]}" ]]; then
+        echo "Error: No master node found in the hosts file or the master node is not available in the Kubernetes nodes."
+        # Output kubectl get nodes -o wide
+        echo "Current Kubernetes nodes:"
+        timeout 10s kubectl get nodes -o wide
+        exit 1
+    fi
+fi
+
+# Detect and remove nodes
+echo "Step 3/11: Detecting and removing nodes..."
+REMOVED_NODES=$(get_removed_nodes)
+if [[ ! -z "$REMOVED_NODES" ]]; then
+    echo "Removing nodes: $REMOVED_NODES"
+    remove_nodes $REMOVED_NODES
+fi
+
+# Remove nodes with role "none"
+echo "Step 4/11: Removing nodes with role 'none'..."
+remove_none_role_nodes
+
+# Function to get load balancer details
+get_load_balancer() {
+    while true; do
+        echo "Enter the IP or DNS of the load balancer: "
+        read LB_INPUT
+        check_new_node_ip $LB_INPUT
+        if [[ $LB_INPUT =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            LB_IP=$LB_INPUT
+            if check_ssh $LB_IP; then
+                echo "SSH to $LB_IP successful."
+                if [[ -f "./install_setup_haproxy.sh" ]]; then
+                    ./install_setup_haproxy.sh
+                else
+                    echo "Error: File install_setup_haproxy.sh not found."
+                    exit 1
+                fi
+                break
+            else
+                echo "SSH to $LB_IP failed. Please check the IP and try again."
+            fi
+        else
+            if nslookup $LB_INPUT > /dev/null; then
+                LB_IP=$(nslookup $LB_INPUT | awk '/^Address: / { print $2 ; exit }')
+                if check_port $LB_IP 6443; then
+                    echo "Port 6443 on $LB_IP is open."
+                    break
+                else
+                    echo "Port 6443 on $LB_IP is not open. Please enter a valid load balancer IP or DNS."
+                fi
+            else
+                echo "Invalid DNS. Please enter a valid load balancer IP or DNS."
+            fi
+        fi
+    done
+}
+
+# Get load balancer info if not found in hosts file
+echo "Step 5/11: Checking load balancer details..."
+LB_IP=""
+for HOSTNAME in "${!HOSTS[@]}"
+do
+    if [[ $HOSTNAME == *"lb"* ]]; then
+        LB_IP=${HOSTS[$HOSTNAME]}
+        break
+    fi
+done
+
+if [[ -z $LB_IP ]]; then
+    get_load_balancer
+else
+    check_new_node_ip $LB_IP
+    if check_ssh $LB_IP; then
+        echo "SSH to $LB_IP successful."
+        if [[ -f "./install_setup_haproxy.sh" ]]; then
+            ./install_setup_haproxy.sh
+        else
+            echo "Error: File install_setup_haproxy.sh not found."
+            exit 1
+        fi
+    elif check_port $LB_IP 6443; then
+        echo "Port 6443 on $LB_IP is open."
+    else
+        echo "Port 6443 on $LB_IP is not open. Need to specify load balancer manually."
+        get_load_balancer
+    fi
+fi
+
+# Function to check and validate SSH connectivity for all nodes
+validate_ssh() {
+    for HOSTNAME in "${!HOSTS[@]}"
+    do
+        IP=${HOSTS[$HOSTNAME]}
+        check_new_node_ip $IP
+        if ! check_ssh $IP; then
+            echo "SSH to $IP ($HOSTNAME) failed. Please check the SSH configuration."
+            exit 1
+        fi
+    done
+}
+
+echo "Step 6/11: Validating SSH connectivity for all nodes..."
+validate_ssh
+
+# Function to update node hostname in Kubernetes
+update_node_hostname() {
+    local old_hostname=$1
+    local new_hostname=$2
+    local ip=$3
+    echo "Removing $old_hostname $ip from the cluster"
+    if [[ -f "./remove_node_and_uninstall.sh" ]]; then
+        ./remove_node_and_uninstall.sh $old_hostname $ip $MASTER1_IP
+    else
+        echo "Error: File remove_node_and_uninstall.sh not found."
+        exit 1
+    fi
+    timeout 10s kubectl delete node $old_hostname --force --grace-period=0 &>/dev/null
+}
+
+# Check and update node hostnames if needed
+echo "Step 7/11: Checking and updating node hostnames if needed..."
+for HOSTNAME in "${!K8S_NODES[@]}"; do
+    if [[ -z "${HOSTS[$HOSTNAME]}" ]]; then
+        new_hostname=$(grep "${K8S_NODES[$HOSTNAME]}" "$HOSTS_FILE" | awk '{print $2}')
+        if [[ ! -z "$new_hostname" && "$new_hostname" != "$HOSTNAME" ]]; then
+            IP=${K8S_NODES[$HOSTNAME]}
+            echo "Updating hostname from $HOSTNAME to $new_hostname"
+            update_node_hostname $HOSTNAME $new_hostname $IP
+        fi
+    fi
+done
+
+# Run the set_hosts_hostname.sh script
+echo "Step 8/11: Running hosts_hostname_set.sh script..."
+if [[ -f "./hosts_hostname_set.sh" ]]; then
+    ./hosts_hostname_set.sh
+else
+    echo "Error: File hosts_hostname_set.sh not found."
+    exit 1
+fi
+
+# Run create_cluster.sh
+echo "Step 9/11: Running create_cluster.sh script..."
+if [[ -f "./create_cluster.sh" ]]; then
+    # Find the first master node to create the cluster
+    MASTER1_HOSTNAME=""
+    for HOSTNAME in "${!HOSTS[@]}"
+    do
+        if [[ $HOSTNAME == *"master"* ]]; then
+            MASTER1_HOSTNAME=$HOSTNAME
+            MASTER1_IP=${HOSTS[$MASTER1_HOSTNAME]}
+            break
+        fi
+    done
+
+    # Ensure MASTER1_HOSTNAME and MASTER1_IP are set and available in Kubernetes nodes
+    if [[ -z "$MASTER1_HOSTNAME" || -z "$MASTER1_IP" ]]; then
+        echo "Error: No master node $MASTER1_HOSTNAME $MASTER1_IP found in the hosts file or the master node is not available in the Kubernetes nodes."
+        exit 1
+    fi
+    echo "Creating First Master node $MASTER1_HOSTNAME $MASTER1_IP to the cluster"
+    ./uninstall_docker_kubernetes.sh $MASTER1_IP
+    ./create_cluster.sh $MASTER1_HOSTNAME $MASTER1_IP $LB_IP
+else
+    echo "Error: File create_cluster.sh not found."
+    exit 1
+fi
+
+# Add master nodes
+echo "Step 10/11: Adding master nodes..."
+for HOSTNAME in "${!HOSTS[@]}"
+do
+    if [[ $HOSTNAME == *"master"* && $HOSTNAME != $MASTER1_HOSTNAME ]]; then
+        IP=${HOSTS[$HOSTNAME]}
+        check_new_node_ip $IP
+        echo "Adding Master node $HOSTNAME $IP to the cluster"
+        if [[ -f "./add_master_node.sh" ]]; then
+            ./uninstall_docker_kubernetes.sh $IP
+	    ./add_master_node.sh $HOSTNAME $IP $MASTER1_IP $LB_IP
+        else
+            echo "Error: File add_master_node.sh not found."
+            exit 1
+        fi
+    fi
+done
+
+# Add worker nodes
+echo "Step 11/11: Adding worker nodes..."
+for HOSTNAME in "${!HOSTS[@]}"
+do
+    if [[ $HOSTNAME == *"worker"* ]]; then
+        IP=${HOSTS[$HOSTNAME]}
+        check_new_node_ip $IP
+        echo "Adding worker node $HOSTNAME $IP to the cluster"
+        if [[ -f "./add_worker_node.sh" ]]; then
+	    ./uninstall_docker_kubernetes.sh $IP
+            ./add_worker_node.sh $HOSTNAME $IP $MASTER1_IP $LB_IP
+        else
+            echo "Error: File add_worker_node.sh not found."
+            exit 1
+        fi
+    fi
+done
+
+echo "Kubernetes cluster setup is complete."
+

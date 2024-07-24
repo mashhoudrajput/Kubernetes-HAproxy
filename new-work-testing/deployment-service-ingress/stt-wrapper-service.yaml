@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stt-wrapper-service
+  namespace: dev-environment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: stt-wrapper-service
+  template:
+    metadata:
+      labels:
+        app: stt-wrapper-service
+    spec:
+      containers:
+      - name: stt-wrapper-service
+        image: 142081895333.dkr.ecr.eu-central-1.amazonaws.com/stt-wrapper-service
+        ports:
+        - containerPort: 4004
+      imagePullSecrets:
+      - name: ecr-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: stt-wrapper-service
+  namespace: dev-environment
+spec:
+  selector:
+    app: stt-wrapper-service
+  ports:
+    - protocol: TCP
+      port: 4004
+      targetPort: 4004
+

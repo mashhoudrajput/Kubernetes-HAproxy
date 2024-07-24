@@ -1,0 +1,62 @@
+#!/bin/bash
+
+set -e
+
+# Check if arguments are provided
+if [ "$#" -ne 1 ]; then
+    echo "Usage: $0 <server_ip>"
+    exit 1
+fi
+
+SERVER_IP=$1
+SSH_USER=root
+
+# Function to perform SSH actions
+reset_node() {
+    ssh $SSH_USER@$SERVER_IP << 'EOF'
+set -e
+if ! sudo kubeadm reset -f; then
+    echo "Failed to reset kubeadm"
+    exit 1
+fi
+
+if ! sudo systemctl stop kubelet; then
+    echo "Failed to stop kubelet"
+    exit 1
+fi
+
+if ! sudo systemctl stop docker; then
+    echo "Failed to stop docker"
+    exit 1
+fi
+
+if ! sudo rm -rf /var/lib/cni/ /var/lib/kubelet/* /var/lib/etcd/* /etc/cni /opt/cni /etc/kubernetes/* /var/run/kubernetes/* ~/.kube; then
+    echo "Failed to remove Kubernetes directories"
+    exit 1
+fi
+
+if ! sudo systemctl start kubelet; then
+    echo "Failed to start kubelet"
+    exit 1
+fi
+
+if ! sudo systemctl start docker; then
+    echo "Failed to start docker"
+    exit 1
+fi
+EOF
+
+    if [ $? -eq 0 ]; then
+        echo "Node reset on $SERVER_IP"
+    else
+        echo "An error occurred while resetting the node on $SERVER_IP"
+    fi
+}
+
+# Check SSH connectivity and reset node
+if ssh -o BatchMode=yes -o ConnectTimeout=5 $SSH_USER@$SERVER_IP "exit"; then
+    reset_node
+else
+    echo "Unable to SSH into $SERVER_IP"
+fi
+

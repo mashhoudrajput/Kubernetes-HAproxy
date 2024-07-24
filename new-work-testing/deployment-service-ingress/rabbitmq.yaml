@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rabbitmq
+  namespace: dev-environment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rabbitmq
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+    spec:
+      containers:
+      - name: rabbitmq
+        image: rabbitmq:3.12.2-management
+        env:
+        - name: RABBITMQ_DEFAULT_USER
+          value: "heronos_dev"
+        - name: RABBITMQ_DEFAULT_PASS
+          value: "M2JiMzNmNzNlNGQzYjE1N2IzZGUxMzllNDk0Y2I3NDg="
+        ports:
+        - containerPort: 5672
+        - containerPort: 15672
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  namespace: dev-environment
+spec:
+  selector:
+    app: rabbitmq
+  ports:
+    - protocol: TCP
+      port: 5672
+      targetPort: 5672
+      name: cli
+    - protocol: TCP
+      port: 15672
+      targetPort: 15672
+      name: gui
+
